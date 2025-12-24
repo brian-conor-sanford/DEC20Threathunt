@@ -180,7 +180,6 @@ Analyst: Brian Sanford
 - Detect encoded PowerShell
 - Implement named pipe telemetry
 
-
 # December 17th Threat Hunt – Bridge Takeover
 ## Full KQL Query Set with Use Cases
 
@@ -189,7 +188,7 @@ Analyst: Brian Sanford
 ### Flag 1 – Lateral Movement: Source System Identification
 
 **Use Case:**  
-Identifies systems involved in suspicious authentication activity during the breach window. Used to confirm the initial pivot point used by the attacker.
+Identify systems involved in suspicious authentication activity during the breach window to confirm the initial lateral movement source.
 
 DeviceLogonEvents
 | where DeviceName contains "azuki"
@@ -199,7 +198,7 @@ DeviceLogonEvents
 ### Flag 2 – Lateral Movement: Compromised Credential Identification
 
 **Use Case:**  
-Enumerates accounts used for remote interactive logons to identify compromised credentials leveraged for lateral movement.
+Enumerate accounts used for remote interactive logons to identify credentials leveraged by the attacker.
 
 DeviceLogonEvents
 | where DeviceName contains "azuki"
@@ -211,7 +210,7 @@ DeviceLogonEvents
 ### Flag 3 – Lateral Movement: Target Device Identification
 
 **Use Case:**  
-Correlates compromised account, source IP, and logon type to identify the specific endpoint targeted by the attacker.
+Correlate compromised account, source IP, and logon type to identify the executive endpoint targeted by the attacker.
 
 DeviceLogonEvents
 | where AccountName == "yuki.tanaka"
@@ -224,11 +223,25 @@ DeviceLogonEvents
 ### Flag 4 – Execution: Payload Hosting Service Discovery
 
 **Use Case:**  
-Detects outbound connections to external file-hosting services using common download utilities during malware delivery.
+Detect outbound connections to external file-hosting services using common download utilities during malware delivery.
 
 DeviceNetworkEvents
 | where DeviceName contains "azuki-adminpc"
-| where InitiatingProcessCommandLine has_any ("curl","wget","Invoke-WebRequest","Invoke-RestMethod","bitsadmin","certutil","scp","sftp","ftp","rclone","azcopy","aws s3","gsutil")
+| where InitiatingProcessCommandLine has_any (
+"curl",
+"wget",
+"Invoke-WebRequest",
+"Invoke-RestMethod",
+"bitsadmin",
+"certutil",
+"scp",
+"sftp",
+"ftp",
+"rclone",
+"azcopy",
+"aws s3",
+"gsutil"
+)
 | distinct RemoteUrl
 
 ---
@@ -236,7 +249,7 @@ DeviceNetworkEvents
 ### Flag 5 – Execution: Malware Download Command
 
 **Use Case:**  
-Identifies the exact command used to retrieve malicious payloads from attacker-controlled infrastructure.
+Identify the exact command used to retrieve malicious payloads from attacker infrastructure.
 
 DeviceNetworkEvents
 | where DeviceName contains "azuki-adminpc"
@@ -248,21 +261,34 @@ DeviceNetworkEvents
 ### Flag 6 – Execution: Password-Protected Archive Extraction
 
 **Use Case:**  
-Detects malware staging activity involving encrypted archives extracted to temporary directories to evade security controls.
+Detect extraction of encrypted archives staged in temporary directories to evade static inspection.
 
 DeviceProcessEvents
 | where DeviceName contains "azuki-adminpc"
-| where FileName in~ ("7z.exe","7za.exe","7zr.exe","rar.exe","unrar.exe","winrar.exe","tar.exe","zip.exe")
-| where ProcessCommandLine has_any (" x "," e ","-extract")
-| where ProcessCommandLine has_any (" -p","-P","--password","-pass")
-| where ProcessCommandLine has_any ("\\Temp","\\Downloads","\\AppData\\Local\\Temp")
+| where FileName in~ (
+"7z.exe",
+"7za.exe",
+"7zr.exe",
+"rar.exe",
+"unrar.exe",
+"winrar.exe",
+"tar.exe",
+"zip.exe"
+)
+| where ProcessCommandLine has_any (" x ", " e ", "-extract")
+| where ProcessCommandLine has_any (" -p", "-P", "--password", "-pass")
+| where ProcessCommandLine has_any (
+"\\Temp",
+"\\Downloads",
+"\\AppData\\Local\\Temp"
+)
 
 ---
 
 ### Flag 7 – Persistence: C2 Implant Execution
 
 **Use Case:**  
-Detects execution of Meterpreter, indicating interactive attacker control via Metasploit.
+Detect execution of Meterpreter, indicating interactive attacker control via Metasploit.
 
 DeviceProcessEvents
 | where DeviceName contains "azuki-adminpc"
@@ -273,26 +299,30 @@ DeviceProcessEvents
 ### Flag 8 – Persistence: Named Pipe Backdoor
 
 **Use Case:**  
-Identifies stealthy C2 communication channels implemented via named pipes.
+Detect stealthy command-and-control channels implemented using named pipes.
 
 DeviceEvents
 | where DeviceName == "azuki-adminpc"
-| extend ParsedFields=parse_json(AdditionalFields)
-| extend PipeName=tostring(ParsedFields.PipeName)
+| extend ParsedFields = parse_json(AdditionalFields)
+| extend PipeName = tostring(ParsedFields.PipeName)
 | where isnotempty(PipeName)
-| where PipeName startswith "\\Device\\NamedPipe\\"
+| where PipeName startswith @"\Device\NamedPipe\"
 
 ---
 
 ### Flag 9 – Credential Access: Encoded PowerShell Execution
 
 **Use Case:**  
-Detects Base64-encoded PowerShell commands used to hide malicious account creation and privilege escalation.
+Identify Base64-encoded PowerShell commands used to hide malicious account creation and privilege escalation.
 
 DeviceProcessEvents
 | where DeviceName contains "azuki-adminpc"
-| where FileName in~ ("powershell.exe","pwsh.exe")
-| where ProcessCommandLine has_any ("-enc","-encodedcommand","FromBase64String")
+| where FileName in~ ("powershell.exe", "pwsh.exe")
+| where ProcessCommandLine has_any (
+"-enc",
+"-encodedcommand",
+"FromBase64String"
+)
 | order by Timestamp desc
 
 ---
@@ -300,34 +330,47 @@ DeviceProcessEvents
 ### Flag 12 – Discovery: Session Enumeration
 
 **Use Case:**  
-Identifies commands used to enumerate active RDP and user sessions.
+Detect enumeration of active RDP and user sessions for situational awareness.
 
 DeviceProcessEvents
 | where DeviceName contains "azuki-adminpc"
-| where FileName in~ ("query.exe","qwinsta.exe")
-| where ProcessCommandLine has_any ("query user","query session","qwinsta")
+| where FileName in~ ("query.exe", "qwinsta.exe")
+| where ProcessCommandLine has_any (
+"query user",
+"query session",
+"qwinsta"
+)
 
 ---
 
 ### Flag 13 – Discovery: Domain Trust Enumeration
 
 **Use Case:**  
-Detects reconnaissance activity aimed at identifying trust relationships between domains.
+Identify reconnaissance of domain trust relationships for lateral expansion planning.
 
 DeviceProcessEvents
 | where DeviceName contains "azuki-adminpc"
-| where ProcessCommandLine has_any ("domain_trusts","all_trusts")
+| where ProcessCommandLine has_any (
+"domain_trusts",
+"all_trusts"
+)
 
 ---
 
 ### Flag 14 – Discovery: Network Enumeration
 
 **Use Case:**  
-Surfaces use of native utilities to enumerate network connections and routing information.
+Detect native utilities used to enumerate network connections and listening services.
 
 DeviceProcessEvents
 | where DeviceName contains "azuki-adminpc"
-| where FileName in~ ("netstat.exe","arp.exe","route.exe","nbtstat.exe","ipconfig.exe")
+| where FileName in~ (
+"netstat.exe",
+"arp.exe",
+"route.exe",
+"nbtstat.exe",
+"ipconfig.exe"
+)
 | order by Timestamp desc
 
 ---
@@ -335,24 +378,39 @@ DeviceProcessEvents
 ### Flag 15 – Credential Access: Password Database Discovery
 
 **Use Case:**  
-Detects recursive searches for password vaults such as KeePass and browser credential stores.
+Detect recursive searches for password vaults such as KeePass and browser credential stores.
 
 DeviceProcessEvents
 | where DeviceName contains "azuki-adminpc"
-| where ProcessCommandLine has_any ("*.kdb","*.kdbx","*.psafe3","Login Data","logins.json","key4.db")
-| where ProcessCommandLine has_any ("C:\\Users","/s","-Recurse")
+| where ProcessCommandLine has_any (
+"*.kdb",
+"*.kdbx",
+"*.psafe3",
+"Login Data",
+"logins.json",
+"key4.db"
+)
+| where ProcessCommandLine has_any (
+"C:\\Users",
+"/s",
+"-Recurse"
+)
 
 ---
 
 ### Flag 16 – Credential Access: Plaintext Password Files
 
 **Use Case:**  
-Identifies likely plaintext password files stored in user-accessible directories.
+Identify plaintext password files stored in user-accessible directories.
 
 DeviceFileEvents
 | where DeviceName contains "azuki-adminpc"
-| where FileName endswith ".txt" or FileName endswith ".lnk"
-| where FolderPath has_any ("Desktop","Downloads")
+| where FileName endswith ".txt"
+or FileName endswith ".lnk"
+| where FolderPath has_any (
+"Desktop",
+"Downloads"
+)
 | distinct FileName
 
 ---
@@ -360,19 +418,23 @@ DeviceFileEvents
 ### Flag 17 – Collection: Data Staging Directory
 
 **Use Case:**  
-Detects attacker-created staging locations used to aggregate stolen data prior to exfiltration.
+Detect attacker-created staging directories used to aggregate stolen data prior to exfiltration.
 
 DeviceFileEvents
 | where DeviceName contains "azuki-adminpc"
-| where ActionType in~ ("FileCreated","FileCopied","FileMoved")
-| where FolderPath matches regex "\\\\(temp|tmp|stage|staging|loot|dump|data|exfil)(\\\\|$)"
+| where ActionType in~ (
+"FileCreated",
+"FileCopied",
+"FileMoved"
+)
+| where FolderPath matches regex @"\\(temp|tmp|stage|staging|loot|dump|data|exfil)(\\|$)"
 
 ---
 
 ### Flag 18 – Collection: Automated Data Copying
 
 **Use Case:**  
-Identifies scripted bulk data collection using Robocopy with retry logic.
+Detect scripted bulk data collection using Robocopy.
 
 DeviceProcessEvents
 | where DeviceName contains "azuki-adminpc"
@@ -383,42 +445,69 @@ DeviceProcessEvents
 ### Flag 20 – Credential Access: Post-Compromise Tool Download
 
 **Use Case:**  
-Detects secondary tool downloads following initial malware deployment.
+Detect secondary malicious tool downloads following initial compromise.
 
 DeviceProcessEvents
 | where DeviceName contains "azuki-adminpc"
-| where FileName in~ ("powershell.exe","pwsh.exe","cmd.exe","certutil.exe","bitsadmin.exe","curl.exe","wget.exe")
-| where ProcessCommandLine has_any ("http://","https://")
+| where FileName in~ (
+"powershell.exe",
+"pwsh.exe",
+"cmd.exe",
+"certutil.exe",
+"bitsadmin.exe",
+"curl.exe",
+"wget.exe"
+)
+| where ProcessCommandLine has_any (
+"http://",
+"https://"
+)
 
 ---
 
 ### Flag 21 – Credential Access: Browser Credential Theft
 
 **Use Case:**  
-Detects DPAPI-based extraction of stored browser credentials.
+Detect DPAPI-based extraction of stored browser credentials.
 
 DeviceProcessEvents
 | where DeviceName contains "azuki-adminpc"
-| where ProcessCommandLine has_any ("dpapi","Login Data","Cookies","sharpchrome","lazagne")
+| where ProcessCommandLine has_any (
+"dpapi",
+"Login Data",
+"Cookies",
+"sharpchrome",
+"lazagne"
+)
 
 ---
 
 ### Flag 22 – Exfiltration: Data Upload Command
 
 **Use Case:**  
-Detects HTTP POST-based file uploads indicative of data exfiltration.
+Detect HTTP POST-based file uploads indicative of data exfiltration.
 
 DeviceProcessEvents
 | where DeviceName contains "azuki-adminpc"
-| where FileName in~ ("curl.exe","wget.exe","powershell.exe","pwsh.exe")
-| where ProcessCommandLine has_any ("POST","-X POST","-F","multipart")
+| where FileName in~ (
+"curl.exe",
+"wget.exe",
+"powershell.exe",
+"pwsh.exe"
+)
+| where ProcessCommandLine has_any (
+"POST",
+"-X POST",
+"-F",
+"multipart"
+)
 
 ---
 
 ### Flag 24 – Exfiltration: Destination Infrastructure
 
 **Use Case:**  
-Identifies external exfiltration endpoints for blocking and intelligence correlation.
+Identify cloud storage services used for data exfiltration.
 
 DeviceNetworkEvents
 | where DeviceName contains "azuki-adminpc"
@@ -429,15 +518,8 @@ DeviceNetworkEvents
 ### Flag 25 – Credential Access: Master Password Extraction
 
 **Use Case:**  
-Detects creation of files containing master passwords, indicating full credential vault compromise.
+Detect creation of files containing master passwords indicating vault compromise.
 
 DeviceFileEvents
-| where DeviceName contains "azuki-adminpc"
-| where ActionType == "FileCreated"
-| where FileName contains "master"
-| distinct FileName
+| where DeviceName
 
----
-
-**Severity:** CRITICAL  
-**Status:** Confirmed Executive-Level Breach
