@@ -213,10 +213,10 @@ DeviceLogonEvents
 Correlate compromised account, source IP, and logon type to identify the executive endpoint targeted by the attacker.
 
 DeviceLogonEvents    
-| where AccountName == "yuki.tanaka"    
-| where DeviceName contains "azuki"    
-| where LogonType == "RemoteInteractive"     
-| where RemoteIP == "10.1.0.204"    
+| where AccountName == "yuki.tanaka"     
+| where DeviceName contains "azuki"       
+| where LogonType == "RemoteInteractive"       
+| where RemoteIP == "10.1.0.204"       
 
 ---
 
@@ -225,8 +225,8 @@ DeviceLogonEvents
 **Use Case:**  
 Detect outbound connections to external file-hosting services using common download utilities during malware delivery.
 
-DeviceNetworkEvents
-| where DeviceName contains "azuki-adminpc"
+DeviceNetworkEvents   
+| where DeviceName contains "azuki-adminpc"    
 | where InitiatingProcessCommandLine has_any (
 "curl",
 "wget",
@@ -241,8 +241,8 @@ DeviceNetworkEvents
 "azcopy",
 "aws s3",
 "gsutil"
-)
-| distinct RemoteUrl
+)    
+| distinct RemoteUrl   
 
 ---
 
@@ -251,10 +251,10 @@ DeviceNetworkEvents
 **Use Case:**  
 Identify the exact command used to retrieve malicious payloads from attacker infrastructure.
 
-DeviceNetworkEvents
-| where DeviceName contains "azuki-adminpc"
-| where InitiatingProcessCommandLine has "curl"
-| where RemoteUrl == "litter.catbox.moe"
+DeviceNetworkEvents   
+| where DeviceName contains "azuki-adminpc"   
+| where InitiatingProcessCommandLine has "curl"    
+| where RemoteUrl == "litter.catbox.moe"   
 
 ---
 
@@ -263,8 +263,8 @@ DeviceNetworkEvents
 **Use Case:**  
 Detect extraction of encrypted archives staged in temporary directories to evade static inspection.
 
-DeviceProcessEvents
-| where DeviceName contains "azuki-adminpc"
+DeviceProcessEvents    
+| where DeviceName contains "azuki-adminpc"   
 | where FileName in~ (
 "7z.exe",
 "7za.exe",
@@ -274,14 +274,14 @@ DeviceProcessEvents
 "winrar.exe",
 "tar.exe",
 "zip.exe"
-)
-| where ProcessCommandLine has_any (" x ", " e ", "-extract")
-| where ProcessCommandLine has_any (" -p", "-P", "--password", "-pass")
+)    
+| where ProcessCommandLine has_any (" x ", " e ", "-extract")    
+| where ProcessCommandLine has_any (" -p", "-P", "--password", "-pass")   
 | where ProcessCommandLine has_any (
 "\\Temp",
 "\\Downloads",
 "\\AppData\\Local\\Temp"
-)
+)    
 
 ---
 
@@ -290,9 +290,9 @@ DeviceProcessEvents
 **Use Case:**  
 Detect execution of Meterpreter, indicating interactive attacker control via Metasploit.
 
-DeviceProcessEvents
-| where DeviceName contains "azuki-adminpc"
-| where FileName == "meterpreter.exe"
+DeviceProcessEvents    
+| where DeviceName contains "azuki-adminpc"    
+| where FileName == "meterpreter.exe"    
 
 ---
 
@@ -300,13 +300,13 @@ DeviceProcessEvents
 
 **Use Case:**  
 Detect stealthy command-and-control channels implemented using named pipes.
-
-DeviceEvents
-| where DeviceName == "azuki-adminpc"
-| extend ParsedFields = parse_json(AdditionalFields)
-| extend PipeName = tostring(ParsedFields.PipeName)
-| where isnotempty(PipeName)
-| where PipeName startswith @"\Device\NamedPipe\"
+   
+DeviceEvents   
+| where DeviceName == "azuki-adminpc"   
+| extend ParsedFields = parse_json(AdditionalFields)   
+| extend PipeName = tostring(ParsedFields.PipeName)    
+| where isnotempty(PipeName)    
+| where PipeName startswith @"\Device\NamedPipe\"   
 
 ---
 
@@ -315,14 +315,14 @@ DeviceEvents
 **Use Case:**  
 Identify Base64-encoded PowerShell commands used to hide malicious account creation and privilege escalation.
 
-DeviceProcessEvents
-| where DeviceName contains "azuki-adminpc"
-| where FileName in~ ("powershell.exe", "pwsh.exe")
+DeviceProcessEvents   
+| where DeviceName contains "azuki-adminpc"    
+| where FileName in~ ("powershell.exe", "pwsh.exe")    
 | where ProcessCommandLine has_any (
 "-enc",
 "-encodedcommand",
 "FromBase64String"
-)
+)     
 | order by Timestamp desc
 
 ---
@@ -332,9 +332,9 @@ DeviceProcessEvents
 **Use Case:**  
 Detect enumeration of active RDP and user sessions for situational awareness.
 
-DeviceProcessEvents
-| where DeviceName contains "azuki-adminpc"
-| where FileName in~ ("query.exe", "qwinsta.exe")
+DeviceProcessEvents   
+| where DeviceName contains "azuki-adminpc"    
+| where FileName in~ ("query.exe", "qwinsta.exe")    
 | where ProcessCommandLine has_any (
 "query user",
 "query session",
@@ -348,12 +348,12 @@ DeviceProcessEvents
 **Use Case:**  
 Identify reconnaissance of domain trust relationships for lateral expansion planning.
 
-DeviceProcessEvents
-| where DeviceName contains "azuki-adminpc"
+DeviceProcessEvents    
+| where DeviceName contains "azuki-adminpc"   
 | where ProcessCommandLine has_any (
 "domain_trusts",
 "all_trusts"
-)
+)    
 
 ---
 
@@ -362,15 +362,15 @@ DeviceProcessEvents
 **Use Case:**  
 Detect native utilities used to enumerate network connections and listening services.
 
-DeviceProcessEvents
-| where DeviceName contains "azuki-adminpc"
+DeviceProcessEvents   
+| where DeviceName contains "azuki-adminpc"    
 | where FileName in~ (
 "netstat.exe",
 "arp.exe",
 "route.exe",
 "nbtstat.exe",
 "ipconfig.exe"
-)
+)    
 | order by Timestamp desc
 
 ---
@@ -380,8 +380,8 @@ DeviceProcessEvents
 **Use Case:**  
 Detect recursive searches for password vaults such as KeePass and browser credential stores.
 
-DeviceProcessEvents
-| where DeviceName contains "azuki-adminpc"
+DeviceProcessEvents    
+| where DeviceName contains "azuki-adminpc"    
 | where ProcessCommandLine has_any (
 "*.kdb",
 "*.kdbx",
@@ -389,7 +389,7 @@ DeviceProcessEvents
 "Login Data",
 "logins.json",
 "key4.db"
-)
+)    
 | where ProcessCommandLine has_any (
 "C:\\Users",
 "/s",
@@ -403,15 +403,15 @@ DeviceProcessEvents
 **Use Case:**  
 Identify plaintext password files stored in user-accessible directories.
 
-DeviceFileEvents
-| where DeviceName contains "azuki-adminpc"
+DeviceFileEvents   
+| where DeviceName contains "azuki-adminpc"   
 | where FileName endswith ".txt"
-or FileName endswith ".lnk"
+or FileName endswith ".lnk"     
 | where FolderPath has_any (
 "Desktop",
 "Downloads"
-)
-| distinct FileName
+)    
+| distinct FileName    
 
 ---
 
@@ -419,15 +419,15 @@ or FileName endswith ".lnk"
 
 **Use Case:**  
 Detect attacker-created staging directories used to aggregate stolen data prior to exfiltration.
-
-DeviceFileEvents
-| where DeviceName contains "azuki-adminpc"
+ 
+DeviceFileEvents    
+| where DeviceName contains "azuki-adminpc"    
 | where ActionType in~ (
 "FileCreated",
 "FileCopied",
 "FileMoved"
-)
-| where FolderPath matches regex @"\\(temp|tmp|stage|staging|loot|dump|data|exfil)(\\|$)"
+)    
+| where FolderPath matches regex @"\\(temp|tmp|stage|staging|loot|dump|data|exfil)(\\|$)"    
 
 ---
 
@@ -436,9 +436,9 @@ DeviceFileEvents
 **Use Case:**  
 Detect scripted bulk data collection using Robocopy.
 
-DeviceProcessEvents
-| where DeviceName contains "azuki-adminpc"
-| where FileName == "robocopy.exe"
+DeviceProcessEvents    
+| where DeviceName contains "azuki-adminpc"    
+| where FileName == "robocopy.exe"   
 
 ---
 
@@ -447,8 +447,8 @@ DeviceProcessEvents
 **Use Case:**  
 Detect secondary malicious tool downloads following initial compromise.
 
-DeviceProcessEvents
-| where DeviceName contains "azuki-adminpc"
+DeviceProcessEvents    
+| where DeviceName contains "azuki-adminpc"    
 | where FileName in~ (
 "powershell.exe",
 "pwsh.exe",
@@ -457,7 +457,7 @@ DeviceProcessEvents
 "bitsadmin.exe",
 "curl.exe",
 "wget.exe"
-)
+)     
 | where ProcessCommandLine has_any (
 "http://",
 "https://"
@@ -470,8 +470,8 @@ DeviceProcessEvents
 **Use Case:**  
 Detect DPAPI-based extraction of stored browser credentials.
 
-DeviceProcessEvents
-| where DeviceName contains "azuki-adminpc"
+DeviceProcessEvents       
+| where DeviceName contains "azuki-adminpc"    
 | where ProcessCommandLine has_any (
 "dpapi",
 "Login Data",
@@ -487,20 +487,20 @@ DeviceProcessEvents
 **Use Case:**  
 Detect HTTP POST-based file uploads indicative of data exfiltration.
 
-DeviceProcessEvents
-| where DeviceName contains "azuki-adminpc"
+DeviceProcessEvents   
+| where DeviceName contains "azuki-adminpc"     
 | where FileName in~ (
 "curl.exe",
 "wget.exe",
 "powershell.exe",
 "pwsh.exe"
-)
+)     
 | where ProcessCommandLine has_any (
 "POST",
 "-X POST",
 "-F",
 "multipart"
-)
+)    
 
 ---
 
@@ -509,9 +509,9 @@ DeviceProcessEvents
 **Use Case:**  
 Identify cloud storage services used for data exfiltration.
 
-DeviceNetworkEvents
-| where DeviceName contains "azuki-adminpc"
-| where RemoteUrl has "gofile.io"
+DeviceNetworkEvents     
+| where DeviceName contains "azuki-adminpc"      
+| where RemoteUrl has "gofile.io"    
 
 ---
 
@@ -520,12 +520,12 @@ DeviceNetworkEvents
 **Use Case:**  
 Detect creation of files containing master passwords indicating vault compromise.
 
-DeviceFileEvents
-| where DeviceName contains "azuki-adminpc"
-| where ActionType == "FileCreated"
-| where FileName contains "master"
-| distinct FileName
-
+DeviceFileEvents   
+| where DeviceName contains "azuki-adminpc"    
+| where ActionType == "FileCreated"    
+| where FileName contains "master"     
+| distinct FileName    
+ 
 ---
 
 **Severity:** CRITICAL  
