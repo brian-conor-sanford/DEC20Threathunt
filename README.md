@@ -179,3 +179,326 @@ Analyst: Brian Sanford
 - Monitor cloud storage exfiltration
 - Detect encoded PowerShell
 - Implement named pipe telemetry
+
+# December 17th Threat Hunt – Bridge Takeover
+## Consolidated KQL Queries & Detection Use Cases (Single Block)
+
+This document contains ALL KQL queries used during the December 17th Bridge Takeover threat hunt.
+
+
+--------------------------------------------------
+LATERAL MOVEMENT – SOURCE SYSTEM IDENTIFICATION
+--------------------------------------------------
+
+KQL:
+DeviceLogonEvents
+| where DeviceName contains "azuki"
+
+Use Case:
+Establishes a baseline of authentication activity across Azuki systems.
+Used to identify anomalous remote logons during a known compromise window and isolate attacker-controlled source systems enabling lateral movement.
+
+--------------------------------------------------
+LATERAL MOVEMENT – COMPROMISED CREDENTIAL IDENTIFICATION
+--------------------------------------------------
+
+KQL:
+DeviceLogonEvents
+| where DeviceName contains "azuki"
+| where LogonType == "RemoteInteractive"
+| distinct AccountName
+
+Use Case:
+Identifies accounts used for remote interactive logons, a common lateral movement technique.
+Helps differentiate compromised credentials from legitimate administrative access.
+
+--------------------------------------------------
+LATERAL MOVEMENT – TARGET DEVICE CONFIRMATION
+--------------------------------------------------
+
+KQL:
+DeviceLogonEvents
+| where AccountName == @"yuki.tanaka"
+| where DeviceName contains "azuki"
+| where LogonType == "RemoteInteractive"
+| where RemoteIP == "10.1.0.204"
+
+Use Case:
+Correlates compromised credentials and source IP to identify the specific target system.
+Critical for confirming executive workstation compromise and prioritizing response actions.
+
+--------------------------------------------------
+EXECUTION – PAYLOAD HOSTING SERVICE DISCOVERY
+--------------------------------------------------
+
+KQL:
+DeviceNetworkEvents
+| where DeviceName contains "azuki-adminpc"
+| where InitiatingProcessCommandLine has_any (
+  "curl","wget","Invoke-WebRequest","Invoke-RestMethod",
+  "bitsadmin","certutil","scp","sftp","ftp",
+  "rclone","azcopy","aws s3","gsutil"
+)
+| distinct RemoteUrl
+
+Use Case:
+Detects outbound connections initiated by common file transfer utilities.
+Effective for identifying malware delivery infrastructure abusing legitimate tools.
+
+--------------------------------------------------
+EXECUTION – MALWARE DOWNLOAD COMMAND
+--------------------------------------------------
+
+KQL:
+DeviceNetworkEvents
+| where DeviceName contains "azuki-adminpc"
+| where InitiatingProcessCommandLine has_any ("curl")
+| where RemoteUrl == "litter.catbox.moe"
+
+Use Case:
+Isolates the exact malware download activity used during the intrusion.
+Supports IOC creation, network blocking, and threat intelligence correlation.
+
+--------------------------------------------------
+EXECUTION – PASSWORD-PROTECTED ARCHIVE EXTRACTION
+--------------------------------------------------
+
+KQL:
+DeviceProcessEvents
+| where DeviceName contains "azuki-adminpc"
+| where FileName in~ (
+  "7z.exe","7za.exe","7zr.exe",
+  "rar.exe","unrar.exe","winrar.exe",
+  "tar.exe","zip.exe"
+)
+| where ProcessCommandLine has_any (" x ", " e ", "-extract")
+| where ProcessCommandLine has_any (" -p", "-P", "--password", "-pass")
+| where ProcessCommandLine has_any (
+  "\\AppData\\Local\\Temp",
+  "\\INetCache\\",
+  "\\Downloads\\",
+  "\\Temp\\"
+)
+
+Use Case:
+Password-protected archive extraction is a strong indicator of malware staging and AV evasion.
+This query surfaces post-download execution tied to malicious payload deployment.
+
+--------------------------------------------------
+PERSISTENCE – C2 IMPLANT EXECUTION
+--------------------------------------------------
+
+KQL:
+DeviceProcessEvents
+| where DeviceName contains "azuki-adminpc"
+| where FileName == "meterpreter.exe"
+
+Use Case:
+Meterpreter execution indicates hands-on-keyboard exploitation using Metasploit.
+Confirms full interactive attacker control of the endpoint.
+
+--------------------------------------------------
+PERSISTENCE – NAMED PIPE BACKDOOR
+--------------------------------------------------
+
+KQL:
+DeviceEvents
+| where DeviceName == "azuki-adminpc"
+| extend ParsedFields = parse_json(AdditionalFields)
+| extend PipeName = tostring(ParsedFields.PipeName)
+| where isnotempty(PipeName)
+| where PipeName startswith @"\Device\NamedPipe\"
+
+Use Case:
+Named pipes are commonly used for stealthy command-and-control communication.
+Detects advanced persistence mechanisms used by post-exploitation frameworks.
+
+--------------------------------------------------
+CREDENTIAL ACCESS – ENCODED POWERSHELL EXECUTION
+--------------------------------------------------
+
+KQL:
+DeviceProcessEvents
+| where DeviceName contains "azuki-adminpc"
+| where FileName in~ ("powershell.exe", "pwsh.exe")
+| where ProcessCommandLine has_any (
+  "-enc","-encodedcommand","FromBase64String"
+)
+| project Timestamp, DeviceName, AccountName, ProcessCommandLine
+| order by Timestamp desc
+
+Use Case:
+Encoded PowerShell commands are used to obscure malicious activity.
+Enables detection and decoding of account creation and privilege escalation actions.
+
+--------------------------------------------------
+DISCOVERY – SESSION ENUMERATION
+--------------------------------------------------
+
+KQL:
+DeviceProcessEvents
+| where DeviceName contains "azuki-adminpc"
+| where FileName in~ ("query.exe", "qwinsta.exe")
+| where ProcessCommandLine has_any ("query user", "query session", "qwinsta")
+
+Use Case:
+Session enumeration allows attackers to identify logged-in users and active RDP sessions.
+Rarely required for standard workstation operations.
+
+--------------------------------------------------
+DISCOVERY – DOMAIN TRUST ENUMERATION
+--------------------------------------------------
+
+KQL:
+DeviceProcessEvents
+| where DeviceName contains "azuki-adminpc"
+| where ProcessCommandLine has_any ("Trusts")
+
+Use Case:
+Domain trust enumeration supports cross-domain lateral movement planning.
+Detection indicates advanced internal reconnaissance.
+
+--------------------------------------------------
+DISCOVERY – NETWORK ENUMERATION
+--------------------------------------------------
+
+KQL:
+DeviceProcessEvents
+| where DeviceName contains "azuki-adminpc"
+| where FileName in~ (
+  "netstat.exe","arp.exe","route.exe",
+  "nbtstat.exe","ipconfig.exe"
+)
+| order by Timestamp desc
+
+Use Case:
+Network enumeration reveals active connections and listening services.
+Used by attackers to identify pivot paths and exfiltration routes.
+
+--------------------------------------------------
+CREDENTIAL ACCESS – PASSWORD DATABASE DISCOVERY
+--------------------------------------------------
+
+KQL:
+DeviceProcessEvents
+| where DeviceName contains "azuki-adminpc"
+| where ProcessCommandLine has_any (
+  "*.kdb","*.kdbx","*.psafe3",
+  "Login Data","logins.json","key4.db"
+)
+| where ProcessCommandLine has_any ("C:\\Users","/s","-Recurse")
+
+Use Case:
+Recursive searches for password databases strongly indicate credential harvesting.
+Detects early stages of vault compromise.
+
+--------------------------------------------------
+CREDENTIAL ACCESS – PLAINTEXT PASSWORD FILES
+--------------------------------------------------
+
+KQL:
+DeviceFileEvents
+| where DeviceName contains "azuki-adminpc"
+| where FileName endswith ".txt" or FileName endswith ".lnk"
+| where FolderPath has_any ("Desktop","Downloads")
+| distinct FileName
+
+Use Case:
+Attackers frequently target improperly stored plaintext credentials.
+Highlights files that pose immediate security risk.
+
+--------------------------------------------------
+COLLECTION – DATA STAGING DETECTION
+--------------------------------------------------
+
+KQL:
+DeviceFileEvents
+| where DeviceName contains "azuki-adminpc"
+| where ActionType in~ ("FileCreated","FileCopied","FileMoved")
+| where FolderPath matches regex @"\\(temp|tmp|stage|staging|loot|dump|data|exfil)(\\|$)"
+
+Use Case:
+Staging directories aggregate stolen data before exfiltration.
+Detection enables early disruption of data theft operations.
+
+--------------------------------------------------
+CREDENTIAL ACCESS – POST-EXPLOITATION TOOL DOWNLOAD
+--------------------------------------------------
+
+KQL:
+DeviceProcessEvents
+| where DeviceName contains "azuki-adminpc"
+| where FileName in~ (
+  "powershell.exe","pwsh.exe","cmd.exe",
+  "certutil.exe","bitsadmin.exe","curl.exe","wget.exe"
+)
+| where ProcessCommandLine has_any ("http://","https://")
+| distinct ProcessCommandLine
+
+Use Case:
+Detects secondary tooling downloads following initial compromise.
+Commonly associated with credential theft expansion.
+
+--------------------------------------------------
+CREDENTIAL ACCESS – BROWSER CREDENTIAL THEFT
+--------------------------------------------------
+
+KQL:
+DeviceProcessEvents
+| where DeviceName contains "azuki-adminpc"
+| where ProcessCommandLine has_any (
+  "dpapi","chrome","Login Data","Cookies",
+  "sharpchrome","lazagne"
+)
+
+Use Case:
+DPAPI-based extraction enables theft of stored browser credentials.
+Confirms deep credential compromise.
+
+--------------------------------------------------
+EXFILTRATION – DATA UPLOAD COMMANDS
+--------------------------------------------------
+
+KQL:
+DeviceProcessEvents
+| where DeviceName contains "azuki-adminpc"
+| where FileName in~ ("curl.exe","wget.exe","powershell.exe","pwsh.exe")
+| where ProcessCommandLine has_any ("POST","-X POST","-F","multipart")
+
+Use Case:
+Form-based HTTP uploads are commonly used for data exfiltration.
+Detecting these commands helps stop data loss in progress.
+
+--------------------------------------------------
+EXFILTRATION – DESTINATION INFRASTRUCTURE
+--------------------------------------------------
+
+KQL:
+DeviceNetworkEvents
+| where DeviceName contains "azuki-adminpc"
+| where RemoteUrl has "gofile.io"
+
+Use Case:
+Identifies exfiltration destinations for containment and network blocking.
+Supports rapid response and threat intelligence enrichment.
+
+--------------------------------------------------
+CREDENTIAL ACCESS – MASTER PASSWORD EXTRACTION
+--------------------------------------------------
+
+KQL:
+DeviceFileEvents
+| where DeviceName contains "azuki-adminpc"
+| where ActionType == "FileCreated"
+| where FileName contains "master"
+| distinct FileName
+
+Use Case:
+Master password extraction represents total credential vault compromise.
+Requires immediate credential rotation and executive escalation.
+
+--------------------------------------------------
+SEVERITY: CRITICAL
+STATUS: OPEN – EXECUTIVE INCIDENT RESPONSE REQUIRED
+--------------------------------------------------
+
