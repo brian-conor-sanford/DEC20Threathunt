@@ -190,8 +190,8 @@ Analyst: Brian Sanford
 **Use Case:**  
 Identify systems involved in suspicious authentication activity during the breach window to confirm the initial lateral movement source.
 
-DeviceLogonEvents
-| where DeviceName contains "azuki"
+DeviceLogonEventsn 
+| where DeviceName contains "azuki" 
 
 ---
 
@@ -200,10 +200,10 @@ DeviceLogonEvents
 **Use Case:**  
 Enumerate accounts used for remote interactive logons to identify credentials leveraged by the attacker.
 
-DeviceLogonEvents
-| where DeviceName contains "azuki"
-| where LogonType == "RemoteInteractive"
-| distinct AccountName
+DeviceLogonEvents 
+| where DeviceName contains "azuki" 
+| where LogonType == "RemoteInteractive" 
+| distinct AccountName 
 
 ---
 
